@@ -5,13 +5,11 @@ Feature engineering for HTTP request data
 import pandas as pd
 import numpy as np
 import re
-from typing import List, Dict, Any, Optional, Tuple
-from urllib.parse import urlparse, parse_qs, unquote
+from typing import List, Dict, Any
+from urllib.parse import urlparse, parse_qs
 import logging
 
-from ..utils.config import get_logger, FeatureEngineeringError
-
-logger = get_logger(__name__)
+logger = logging.getLogger(__name__)
 
 
 class HTTPFeatureEngineer:
@@ -23,99 +21,75 @@ class HTTPFeatureEngineer:
         self.suspicious_patterns = {
             'sql_injection': [
                 r'union\s+select', r'1=1', r'--', r'/\*', r'\*/',
-                r'xp_cmdshell', r'exec', r'cast\s*\(', r'information_schema',
-                r'concat\s*\(', r'group_concat', r'select\s+.*\s+from'
+                r'xp_cmdshell', r'exec', r'cast\s*\('
             ],
             'xss': [
                 r'<script', r'javascript:', r'onload=', r'onerror=',
-                r'<iframe', r'<object', r'<embed', r'document\.cookie',
-                r'alert\s*\(', r'eval\s*\(', r'<img.*onerror'
+                r'<iframe', r'<object', r'<embed'
             ],
             'path_traversal': [
-                r'\.\./', r'\.\.\\', r'%2e%2e%2f', r'%2e%2e%5c',
-                r'\.\.%2f', r'\.\.%5c', r'etc/passwd', r'boot\.ini'
+                r'\.\./', r'\.\.\\', r'%2e%2e%2f', r'%2e%2e%5c'
             ],
             'command_injection': [
-                r';\s*', r'`', r'\$\(', r'\$\{', r'\|', r'&',
-                r'wget\s+', r'curl\s+', r'ping\s+-c'
+                r';\s*', r'`', r'\$\(', r'\|', r'&'
             ]
         }
 
         # Common HTTP methods
         self.http_methods = ['GET', 'POST', 'PUT', 'DELETE', 'HEAD', 'OPTIONS', 'PATCH']
 
-        # Compile regex patterns for efficiency
-        self._compiled_patterns = self._compile_patterns()
-
-    def _compile_patterns(self) -> Dict[str, List[re.Pattern]]:
-        """Compile regex patterns for better performance"""
-        compiled = {}
-        for attack_type, patterns in self.suspicious_patterns.items():
-            compiled[attack_type] = [re.compile(pattern, re.IGNORECASE) for pattern in patterns]
-        return compiled
-
-    def _safe_search(self, text: str, patterns: List[re.Pattern]) -> bool:
-        """Safely search for patterns in text"""
-        if not isinstance(text, str) or not text.strip():
-            return False
-        return any(pattern.search(text) for pattern in patterns)
-
     def extract_features(self, df: pd.DataFrame) -> pd.DataFrame:
         """
-        Extract features from HTTP request data
+        Extract comprehensive features from HTTP request data for detailed vulnerability analysis
 
         Args:
             df: DataFrame with HTTP request data
 
         Returns:
             DataFrame with extracted features
-
-        Raises:
-            ValueError: If required columns are missing from DataFrame
         """
-        logger.info("Extracting features from HTTP requests...")
+        logger.info("Extracting comprehensive features from HTTP requests...")
 
-        # Validate required columns
-        required_columns = ['Method', 'URL', 'User-Agent', 'content', 'content_length']
-        missing_columns = [col for col in required_columns if col not in df.columns]
-        if missing_columns:
-            raise ValueError(f"Missing required columns: {missing_columns}")
+        # Create feature DataFrame
+        features = pd.DataFrame(index=df.index)
 
-        try:
-            # Create feature DataFrame
-            features = pd.DataFrame(index=df.index)
+        # Method features (full one-hot encoding with all standard methods)
+        features = pd.concat([features, self._extract_method_features(df)], axis=1)
 
-            # Extract features from different sources
-            feature_extractors = [
-                self._extract_method_features,
-                self._extract_url_features,
-                self._extract_user_agent_features,
-                self._extract_content_features,
-                self._extract_header_features,
-                self._extract_suspicious_features
-            ]
+        # URL features (comprehensive URL analysis)
+        features = pd.concat([features, self._extract_url_features(df)], axis=1)
 
-            for extractor in feature_extractors:
-                try:
-                    new_features = extractor(df)
-                    features = pd.concat([features, new_features], axis=1)
-                except Exception as e:
-                    logger.warning(f"Failed to extract features with {extractor.__name__}: {e}")
-                    continue
+        # User-Agent features (browser and attack tool detection)
+        features = pd.concat([features, self._extract_user_agent_features(df)], axis=1)
 
-            logger.info(f"Extracted {features.shape[1]} features from {len(df)} samples")
-            return features
+        # Content features (request body analysis)
+        features = pd.concat([features, self._extract_content_features(df)], axis=1)
 
-        except Exception as e:
-            logger.error(f"Feature extraction failed: {e}")
-            raise FeatureEngineeringError(f"Feature extraction failed: {e}") from e
+        # Header features (HTTP header analysis)
+        features = pd.concat([features, self._extract_header_features(df)], axis=1)
+
+        # Suspicious pattern features (comprehensive attack pattern detection)
+        features = pd.concat([features, self._extract_suspicious_features(df)], axis=1)
+
+        logger.info(f"Extracted {features.shape[1]} comprehensive features")
+        return features
 
     def _extract_method_features(self, df: pd.DataFrame) -> pd.DataFrame:
         """Extract features from HTTP method"""
         features = pd.DataFrame(index=df.index)
 
-        # One-hot encode HTTP methods
+        # One-hot encode HTTP methods with fixed categories to ensure consistency
         method_dummies = pd.get_dummies(df['Method'], prefix='method')
+        # Ensure all expected methods are present (even if with all zeros)
+        for method in self.http_methods:
+            col_name = f'method_{method}'
+            if col_name not in method_dummies.columns:
+                method_dummies[col_name] = 0
+
+        # Reorder columns to ensure consistency
+        method_cols = [f'method_{method}' for method in self.http_methods]
+        method_dummies = method_dummies[method_cols]
+
         features = pd.concat([features, method_dummies], axis=1)
 
         # Method is standard (1) or not (0)
@@ -123,82 +97,88 @@ class HTTPFeatureEngineer:
 
         return features
 
+    def _extract_method_features_simplified(self, df: pd.DataFrame) -> pd.DataFrame:
+        """Extract simplified method features (only most common methods)"""
+        features = pd.DataFrame(index=df.index)
+
+        # Only keep GET, POST, PUT (DELETE and others have very low importance)
+        common_methods = ['GET', 'POST', 'PUT']
+        for method in common_methods:
+            features[f'method_{method}'] = (df['Method'] == method).astype(int)
+
+        return features
+
+    def _extract_suspicious_features_simplified(self, df: pd.DataFrame) -> pd.DataFrame:
+        """Extract simplified suspicious pattern features (only most important ones)"""
+        features = pd.DataFrame(index=df.index)
+
+        # Only SQL injection patterns (most important) and XSS patterns (moderately important)
+        # Skip path traversal and command injection as they have very low importance
+
+        # Check for SQL injection patterns
+        sql_patterns = '|'.join(self.suspicious_patterns['sql_injection'])
+        features['has_sql_injection_patterns'] = df['URL'].str.contains(
+            sql_patterns, case=False, na=False
+        ).astype(int) | df['content'].str.contains(
+            sql_patterns, case=False, na=False
+        ).astype(int)
+
+        # Check for XSS patterns
+        xss_patterns = '|'.join(self.suspicious_patterns['xss'])
+        features['has_xss_patterns'] = df['URL'].str.contains(
+            xss_patterns, case=False, na=False
+        ).astype(int) | df['content'].str.contains(
+            xss_patterns, case=False, na=False
+        ).astype(int)
+
+        return features
+
     def _extract_url_features(self, df: pd.DataFrame) -> pd.DataFrame:
         """Extract features from URL"""
         features = pd.DataFrame(index=df.index)
 
-        # URL length (handle None/NaN values)
-        features['url_length'] = df['URL'].fillna('').str.len()
+        # URL length
+        features['url_length'] = df['URL'].str.len()
 
         # URL path length (after domain)
-        def get_path_length(url: str) -> int:
-            """Safely extract path length from URL"""
+        def get_path_length(url):
             try:
-                if not isinstance(url, str) or not url.strip():
-                    return 0
-                parsed = urlparse(url)
+                parsed = urlparse(str(url))
                 return len(parsed.path)
-            except Exception:
+            except:
                 return 0
 
         features['url_path_length'] = df['URL'].apply(get_path_length)
 
         # Query parameter count
-        def get_query_param_count(url: str) -> int:
-            """Safely count query parameters"""
+        def get_query_param_count(url):
             try:
-                if not isinstance(url, str) or not url.strip():
-                    return 0
-                parsed = urlparse(url)
+                parsed = urlparse(str(url))
                 params = parse_qs(parsed.query)
                 return len(params)
-            except Exception:
+            except:
                 return 0
 
         features['url_query_param_count'] = df['URL'].apply(get_query_param_count)
 
         # Query parameter total length
-        def get_query_length(url: str) -> int:
-            """Safely get query string length"""
+        def get_query_length(url):
             try:
-                if not isinstance(url, str) or not url.strip():
-                    return 0
-                parsed = urlparse(url)
+                parsed = urlparse(str(url))
                 return len(parsed.query)
-            except Exception:
+            except:
                 return 0
 
         features['url_query_length'] = df['URL'].apply(get_query_length)
 
-        # URL structure features
-        def get_url_depth(url: str) -> int:
-            """Get URL path depth"""
-            try:
-                if not isinstance(url, str) or not url.strip():
-                    return 0
-                parsed = urlparse(url)
-                path_parts = [p for p in parsed.path.split('/') if p]
-                return len(path_parts)
-            except Exception:
-                return 0
-
-        features['url_depth'] = df['URL'].apply(get_url_depth)
-
         # Contains suspicious characters in URL
-        suspicious_url_chars = ['<', '>', '"', "'", ';', '|', '$', '`', '\\', '\x00']
-        features['url_has_suspicious_chars'] = df['URL'].fillna('').apply(
-            lambda x: any(char in x for char in suspicious_url_chars)
+        suspicious_url_chars = ['<', '>', '"', "'", ';', '|', '&', '$', '`']
+        features['url_has_suspicious_chars'] = df['URL'].apply(
+            lambda x: any(char in str(x) for char in suspicious_url_chars)
         ).astype(int)
 
-        # URL contains encoded characters (%XX)
-        features['url_has_encoded_chars'] = df['URL'].fillna('').str.contains(
-            r'%[0-9A-Fa-f]{2}', regex=True
-        ).astype(int)
-
-        # URL contains double encoding
-        features['url_has_double_encoding'] = df['URL'].fillna('').str.contains(
-            r'%25[0-9A-Fa-f]{2}', regex=True
-        ).astype(int)
+        # URL contains encoded characters
+        features['url_has_encoded_chars'] = df['URL'].str.contains(r'%[0-9A-Fa-f]{2}').astype(int)
 
         return features
 
@@ -272,41 +252,40 @@ class HTTPFeatureEngineer:
         """Extract features based on suspicious patterns"""
         features = pd.DataFrame(index=df.index)
 
-        # Check for different attack patterns using compiled regex
-        attack_types = ['sql_injection', 'xss', 'path_traversal', 'command_injection']
-
-        for attack_type in attack_types:
-            feature_name = f'has_{attack_type}_patterns'
-
-            # Check URL and content for patterns
-            url_matches = df['URL'].fillna('').apply(
-                lambda x: self._safe_search(x, self._compiled_patterns[attack_type])
-            ).astype(int)
-
-            content_matches = df['content'].fillna('').apply(
-                lambda x: self._safe_search(x, self._compiled_patterns[attack_type])
-            ).astype(int)
-
-            # Combine URL and content matches
-            features[feature_name] = (url_matches | content_matches).astype(int)
-
-        # Additional suspicious pattern features
-        features['has_mixed_encoding'] = df['URL'].fillna('').apply(
-            lambda x: bool(re.search(r'%[0-9A-Fa-f]{2}.*%[0-9A-Fa-f]{2}', x, re.IGNORECASE))
+        # Check for SQL injection patterns
+        sql_patterns = '|'.join(self.suspicious_patterns['sql_injection'])
+        features['has_sql_injection_patterns'] = df['URL'].str.contains(
+            sql_patterns, case=False, na=False
+        ).astype(int) | df['content'].str.contains(
+            sql_patterns, case=False, na=False
         ).astype(int)
 
-        # Check for common attack signatures in User-Agent
-        ua_attack_patterns = [r'sqlmap', r'nmap', r'nikto', r'gobuster', r'metasploit', r'burpsuite']
-        ua_compiled = [re.compile(pattern, re.IGNORECASE) for pattern in ua_attack_patterns]
-        features['user_agent_attack_tool'] = df['User-Agent'].fillna('').apply(
-            lambda x: self._safe_search(x, ua_compiled)
+        # Check for XSS patterns
+        xss_patterns = '|'.join(self.suspicious_patterns['xss'])
+        features['has_xss_patterns'] = df['URL'].str.contains(
+            xss_patterns, case=False, na=False
+        ).astype(int) | df['content'].str.contains(
+            xss_patterns, case=False, na=False
+        ).astype(int)
+
+        # Check for path traversal patterns
+        traversal_patterns = '|'.join(self.suspicious_patterns['path_traversal'])
+        features['has_path_traversal_patterns'] = df['URL'].str.contains(
+            traversal_patterns, case=False, na=False
+        ).astype(int) | df['content'].str.contains(
+            traversal_patterns, case=False, na=False
+        ).astype(int)
+
+        # Check for command injection patterns
+        cmd_patterns = '|'.join(self.suspicious_patterns['command_injection'])
+        features['has_command_injection_patterns'] = df['URL'].str.contains(
+            cmd_patterns, case=False, na=False
+        ).astype(int) | df['content'].str.contains(
+            cmd_patterns, case=False, na=False
         ).astype(int)
 
         # Overall suspicious score (count of different attack types detected)
         suspicious_cols = [col for col in features.columns if col.startswith('has_')]
         features['suspicious_pattern_score'] = features[suspicious_cols].sum(axis=1)
-
-        # High risk score (multiple attack types detected)
-        features['high_risk_score'] = (features['suspicious_pattern_score'] >= 2).astype(int)
 
         return features

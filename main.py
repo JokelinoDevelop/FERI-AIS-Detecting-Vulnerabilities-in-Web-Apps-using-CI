@@ -17,11 +17,12 @@ import logging
 sys.path.insert(0, str(Path(__file__).parent / 'src'))
 
 from src.models.trainer import ModelTrainer
-from src.utils.config import setup_logging, get_logger, PipelineError
 
-# Setup logging
-setup_logging(level="INFO")
-logger = get_logger(__name__)
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
 
 
 def main():
@@ -87,22 +88,7 @@ def main():
 
     args = parser.parse_args()
 
-    # Validate arguments
-    if args.test_size <= 0 or args.test_size >= 1:
-        parser.error("test-size must be between 0 and 1")
-
-    if args.nrows is not None and args.nrows <= 0:
-        parser.error("nrows must be a positive integer")
-
-    if args.random_state < 0:
-        parser.error("random-state must be non-negative")
-
     try:
-        # Validate data path exists
-        data_path = Path(args.data_path)
-        if not data_path.exists():
-            raise FileNotFoundError(f"Dataset file not found: {data_path}")
-
         # Initialize trainer
         logger.info("Initializing model trainer...")
         trainer = ModelTrainer(
@@ -157,15 +143,8 @@ def main():
 
         logger.info("Pipeline completed successfully!")
 
-    except FileNotFoundError as e:
-        logger.error(f"File not found: {e}")
-        sys.exit(1)
-    except PipelineError as e:
-        logger.error(f"Pipeline execution failed: {e}")
-        sys.exit(1)
     except Exception as e:
-        logger.error(f"Unexpected error: {e}")
-        logger.debug("Full traceback:", exc_info=True)
+        logger.error(f"Pipeline failed: {str(e)}")
         sys.exit(1)
 
 

@@ -10,9 +10,8 @@ import logging
 from ..data.data_loader import load_and_preprocess_data
 from ..features.feature_engineer import HTTPFeatureEngineer
 from .logistic_regression_model import VulnerabilityDetector
-from ..utils.config import get_logger, DataLoadError, FeatureEngineeringError, ModelTrainingError, PipelineError
 
-logger = get_logger(__name__)
+logger = logging.getLogger(__name__)
 
 
 class ModelTrainer:
@@ -30,44 +29,14 @@ class ModelTrainer:
             test_size: Proportion for test set
             random_state: Random state for reproducibility
         """
-        self.data_path: str = data_path
-        self.test_size: float = test_size
-        self.random_state: int = random_state
+        self.data_path = data_path
+        self.test_size = test_size
+        self.random_state = random_state
 
-        self.train_df: Optional[pd.DataFrame] = None
-        self.test_df: Optional[pd.DataFrame] = None
-        self.X_train: Optional[pd.DataFrame] = None
-        self.X_test: Optional[pd.DataFrame] = None
-        self.y_train: Optional[pd.Series] = None
-        self.y_test: Optional[pd.Series] = None
-
-        self.feature_engineer: HTTPFeatureEngineer = HTTPFeatureEngineer()
-        self.model: VulnerabilityDetector = VulnerabilityDetector(random_state=random_state)
-
-    def validate_pipeline_state(self, required_stage: str) -> None:
-        """
-        Validate that the pipeline is in the required state
-
-        Args:
-            required_stage: The minimum pipeline stage required
-                ('data_loaded', 'features_extracted', 'model_trained')
-
-        Raises:
-            ValueError: If the pipeline is not in the required state
-        """
-        stages = {
-            'data_loaded': self.train_df is not None and self.test_df is not None,
-            'features_extracted': hasattr(self, 'X_train') and self.X_train is not None,
-            'model_trained': self.model.pipeline is not None
-        }
-
-        stage_order = ['data_loaded', 'features_extracted', 'model_trained']
-        required_index = stage_order.index(required_stage)
-
-        for i, stage in enumerate(stage_order[:required_index + 1]):
-            if not stages[stage]:
-                raise ValueError(f"Pipeline stage '{stage}' not completed. "
-                               f"Call the appropriate method first.")
+        self.train_df = None
+        self.test_df = None
+        self.feature_engineer = HTTPFeatureEngineer()
+        self.model = VulnerabilityDetector(random_state=random_state)
 
     def load_data(self, nrows: Optional[int] = None) -> 'ModelTrainer':
         """
@@ -91,11 +60,9 @@ class ModelTrainer:
 
         Returns:
             Self for method chaining
-
-        Raises:
-            ValueError: If data not loaded first
         """
-        self.validate_pipeline_state('data_loaded')
+        if self.train_df is None or self.test_df is None:
+            raise ValueError("Data not loaded. Call load_data() first.")
 
         logger.info("Extracting features...")
 
@@ -118,11 +85,9 @@ class ModelTrainer:
 
         Returns:
             Self for method chaining
-
-        Raises:
-            ValueError: If features not extracted first
         """
-        self.validate_pipeline_state('features_extracted')
+        if not hasattr(self, 'X_train') or not hasattr(self, 'y_train'):
+            raise ValueError("Features not extracted. Call extract_features() first.")
 
         logger.info("Training model...")
         self.model.fit(self.X_train, self.y_train)
@@ -134,11 +99,9 @@ class ModelTrainer:
 
         Returns:
             Dictionary with evaluation metrics
-
-        Raises:
-            ValueError: If model not trained first
         """
-        self.validate_pipeline_state('model_trained')
+        if self.model.pipeline is None:
+            raise ValueError("Model not trained. Call train_model() first.")
 
         logger.info("Evaluating model on test set...")
         return self.model.evaluate(self.X_test, self.y_test)
@@ -152,12 +115,7 @@ class ModelTrainer:
 
         Returns:
             Self for method chaining
-
-        Raises:
-            ValueError: If model not trained first
         """
-        self.validate_pipeline_state('model_trained')
-
         self.model.save_model(filepath)
         return self
 
@@ -167,12 +125,7 @@ class ModelTrainer:
 
         Returns:
             DataFrame with feature importance
-
-        Raises:
-            ValueError: If model not trained first
         """
-        self.validate_pipeline_state('model_trained')
-
         return self.model.get_feature_importance()
 
     def plot_results(self, save_path: Optional[str] = None) -> None:
@@ -181,12 +134,7 @@ class ModelTrainer:
 
         Args:
             save_path: Path to save plots
-
-        Raises:
-            ValueError: If model not trained first
         """
-        self.validate_pipeline_state('model_trained')
-
         if save_path is None:
             save_path = "results/evaluation_plots.png"
 
@@ -208,69 +156,34 @@ class ModelTrainer:
             nrows: Number of rows to load (for testing)
 
         Returns:
-            Dictionary with evaluation results and metadata
-
-        Raises:
-            RuntimeError: If any pipeline step fails
+            Dictionary with evaluation results
         """
         logger.info("Starting full training pipeline...")
 
-        try:
-            # Step 1: Load and preprocess data
-            logger.info("Step 1/5: Loading and preprocessing data...")
-            self.load_data(nrows)
+        # Execute pipeline
+        self.load_data(nrows)
+        self.extract_features()
+        self.train_model()
 
-            # Step 2: Extract features
-            logger.info("Step 2/5: Extracting features...")
-            self.extract_features()
+        # Evaluate
+        evaluation_results = self.evaluate_model()
 
-            # Step 3: Train model
-            logger.info("Step 3/5: Training model...")
-            self.train_model()
+        # Save model if requested
+        if save_model_path:
+            self.save_model(save_model_path)
 
-            # Step 4: Evaluate model
-            logger.info("Step 4/5: Evaluating model...")
-            evaluation_results = self.evaluate_model()
+        # Generate plots if requested
+        if save_plots_path:
+            self.plot_results(save_plots_path)
 
-            # Step 5: Save artifacts
-            logger.info("Step 5/5: Saving artifacts...")
+        # Get feature importance
+        feature_importance = self.get_feature_importance()
 
-            # Save model if requested
-            if save_model_path:
-                self.save_model(save_model_path)
-                logger.info(f"Model saved to {save_model_path}")
+        logger.info("Training pipeline completed successfully!")
 
-            # Generate plots if requested
-            if save_plots_path:
-                self.plot_results(save_plots_path)
-                logger.info(f"Plots saved to {save_plots_path}")
-
-            # Get feature importance
-            feature_importance = self.get_feature_importance()
-
-            # Calculate additional metrics
-            pipeline_metadata = {
-                'training_samples': len(self.train_df) if self.train_df is not None else 0,
-                'test_samples': len(self.test_df) if self.test_df is not None else 0,
-                'num_features': self.X_train.shape[1] if self.X_train is not None else 0,
-                'model_type': 'LogisticRegression',
-                'feature_engineering_version': '2.0'  # Track feature engineering changes
-            }
-
-            logger.info("Training pipeline completed successfully!")
-            logger.info(f"Model ROC-AUC: {evaluation_results.get('roc_auc', 'N/A'):.4f}")
-
-            return {
-                'evaluation_metrics': evaluation_results,
-                'feature_importance': feature_importance,
-                'pipeline_metadata': pipeline_metadata,
-                'model': self.model,
-                'trainer': self
-            }
-
-        except (DataLoadError, FeatureEngineeringError, ModelTrainingError) as e:
-            logger.error(f"Training pipeline failed: {e}")
-            raise PipelineError(f"Training pipeline failed: {e}") from e
-        except Exception as e:
-            logger.error(f"Unexpected error in training pipeline: {e}")
-            raise PipelineError(f"Training pipeline failed with unexpected error: {e}") from e
+        return {
+            'evaluation_metrics': evaluation_results,
+            'feature_importance': feature_importance,
+            'model': self.model,
+            'trainer': self
+        }

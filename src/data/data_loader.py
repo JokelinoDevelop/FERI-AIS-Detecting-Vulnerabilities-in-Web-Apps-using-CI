@@ -9,9 +9,7 @@ from typing import Tuple, Optional
 import logging
 from sklearn.model_selection import train_test_split
 
-from ..utils.config import get_logger
-
-logger = get_logger(__name__)
+logger = logging.getLogger(__name__)
 
 
 class CSICDataLoader:
@@ -134,17 +132,8 @@ class CSICDataLoader:
         # Create a copy to avoid modifying original
         df_processed = df.copy()
 
-        # Convert classification to binary (0 = Normal, 1 = Anomalous)
-        # Handle both string and numeric classification values
-        if df_processed['classification'].dtype == 'object':
-            # String classification ('Normal', 'Anomalous')
-            df_processed['target'] = df_processed['classification'].map({
-                'Normal': 0,
-                'Anomalous': 1
-            }).fillna(df_processed['classification'].astype(int))  # Fallback to numeric
-        else:
-            # Already numeric (0, 1)
-            df_processed['target'] = df_processed['classification'].astype(int)
+        # Classification is already binary (0 = Normal, 1 = Anomalous)
+        df_processed['target'] = df_processed['classification'].astype(int)
 
         # Rename length column to content_length for consistency
         df_processed.rename(columns={'length': 'content_length'}, inplace=True)
@@ -219,13 +208,12 @@ def load_and_preprocess_data(data_path: str = "data/csic_database.csv",
         data_path: Path to the dataset
         test_size: Proportion for test set
         nrows: Number of rows to load (for testing)
-        stratified_sample: Whether to use stratified sampling for balanced classes
 
     Returns:
         Tuple of (train_df, test_df)
     """
     loader = CSICDataLoader(data_path)
-    df = loader.load_data(nrows, stratified_sample)
+    df = loader.load_data(nrows)
     df_processed = loader.preprocess_data(df)
     train_df, test_df = loader.get_train_test_split(df_processed, test_size)
 

@@ -18,33 +18,49 @@ from pathlib import Path
 from typing import Dict, Any, Tuple, Optional
 import logging
 
-from ..utils.config import get_logger
-
-logger = get_logger(__name__)
+logger = logging.getLogger(__name__)
 
 
 class VulnerabilityDetector:
     """Logistic Regression model for detecting web vulnerabilities"""
 
-    def __init__(self, random_state: int = 42, max_iter: int = 1000):
+    def __init__(self,
+                 random_state: int = 42,
+                 max_iter: int = 1000,
+                 C: float = 1.0,
+                 penalty: str = 'l2',
+                 class_weight: str = 'balanced',
+                 solver: str = 'lbfgs'):
         """
         Initialize the vulnerability detector
 
         Args:
             random_state: Random state for reproducibility
             max_iter: Maximum iterations for logistic regression
+            C: Regularization strength (smaller = stronger regularization)
+            penalty: Regularization type ('l1', 'l2', 'elasticnet', 'none')
+            class_weight: Class weighting strategy
+            solver: Optimization algorithm
         """
-        self.random_state: int = random_state
-        self.max_iter: int = max_iter
-        self.feature_names: Optional[List[str]] = None
+        self.random_state = random_state
+        self.max_iter = max_iter
+        self.C = C
+        self.penalty = penalty
+        self.class_weight = class_weight
+        self.solver = solver
+        self.model = None
+        self.feature_names = None
 
         # Create the pipeline
-        self.pipeline: Pipeline = Pipeline([
+        self.pipeline = Pipeline([
             ('scaler', StandardScaler()),
             ('classifier', LogisticRegression(
                 random_state=random_state,
                 max_iter=max_iter,
-                class_weight='balanced'  # Handle class imbalance
+                C=C,
+                penalty=penalty,
+                class_weight=class_weight,
+                solver=solver
             ))
         ])
 
@@ -237,7 +253,11 @@ class VulnerabilityDetector:
             'pipeline': self.pipeline,
             'feature_names': self.feature_names,
             'random_state': self.random_state,
-            'max_iter': self.max_iter
+            'max_iter': self.max_iter,
+            'C': self.C,
+            'penalty': self.penalty,
+            'class_weight': self.class_weight,
+            'solver': self.solver
         }
 
         joblib.dump(model_data, filepath)
@@ -259,6 +279,10 @@ class VulnerabilityDetector:
         self.feature_names = model_data['feature_names']
         self.random_state = model_data['random_state']
         self.max_iter = model_data['max_iter']
+        self.C = model_data.get('C', 1.0)
+        self.penalty = model_data.get('penalty', 'l2')
+        self.class_weight = model_data.get('class_weight', 'balanced')
+        self.solver = model_data.get('solver', 'lbfgs')
 
         logger.info(f"Model loaded from {filepath}")
         return self

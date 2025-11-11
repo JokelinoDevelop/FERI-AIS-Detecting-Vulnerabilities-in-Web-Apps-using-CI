@@ -1,0 +1,144 @@
+{
+  "evaluation_metrics": {
+    "classification_report": {
+      "0": {
+        "precision": 0.7902687000726216,
+        "recall": 0.7556944444444444,
+        "f1-score": 0.7725949591764288,
+        "support": 7200.0
+      },
+      "1": {
+        "precision": 0.6698573573573574,
+        "recall": 0.7119489327747855,
+        "f1-score": 0.6902620636302098,
+        "support": 5013.0
+      },
+      "accuracy": 0.7377384753950709,
+      "macro avg": {
+        "precision": 0.7300630287149895,
+        "recall": 0.7338216886096149,
+        "f1-score": 0.7314285114033193,
+        "support": 12213.0
+      },
+      "weighted avg": {
+        "precision": 0.7408441474621558,
+        "recall": 0.7377384753950709,
+        "f1-score": 0.7388002481821444,
+        "support": 12213.0
+      }
+    },
+    "confusion_matrix": [
+      [
+        5441,
+        1759
+      ],
+      [
+        1444,
+        3569
+      ]
+    ],
+    "roc_auc": 0.8284404437351774
+  },
+  "feature_importance_top_20": [
+    {
+      "feature": "url_length",
+      "coefficient": 6.004117462863569,
+      "abs_coefficient": 6.004117462863569
+    },
+    {
+      "feature": "url_query_param_count",
+      "coefficient": -3.6194333995703825,
+      "abs_coefficient": 3.6194333995703825
+    },
+    {
+      "feature": "url_query_length",
+      "coefficient": -3.296970242777908,
+      "abs_coefficient": 3.296970242777908
+    },
+    {
+      "feature": "url_depth",
+      "coefficient": -1.3836858439715722,
+      "abs_coefficient": 1.3836858439715722
+    },
+    {
+      "feature": "has_sql_injection_patterns",
+      "coefficient": 1.3340412538980106,
+      "abs_coefficient": 1.3340412538980106
+    },
+    {
+      "feature": "url_has_double_encoding",
+      "coefficient": 0.9737682380554983,
+      "abs_coefficient": 0.9737682380554983
+    },
+    {
+      "feature": "high_risk_score",
+      "coefficient": -0.868185393213327,
+      "abs_coefficient": 0.868185393213327
+    },
+    {
+      "feature": "suspicious_pattern_score",
+      "coefficient": 0.8517093976613145,
+      "abs_coefficient": 0.8517093976613145
+    },
+    {
+      "feature": "content_has_suspicious_chars",
+      "coefficient": -0.8142196345501216,
+      "abs_coefficient": 0.8142196345501216
+    },
+    {
+      "feature": "method_PUT",
+      "coefficient": 0.7963530603541403,
+      "abs_coefficient": 0.7963530603541403
+    },
+    {
+      "feature": "header_accept_present",
+      "coefficient": -0.7963530603541396,
+      "abs_coefficient": 0.7963530603541396
+    },
+    {
+      "feature": "has_mixed_encoding",
+      "coefficient": 0.7592337199655275,
+      "abs_coefficient": 0.7592337199655275
+    },
+    {
+      "feature": "content_has_encoded_chars",
+      "coefficient": 0.7157302481267637,
+      "abs_coefficient": 0.7157302481267637
+    },
+    {
+      "feature": "url_path_length",
+      "coefficient": 0.6337813098666812,
+      "abs_coefficient": 0.6337813098666812
+    },
+    {
+      "feature": "url_has_encoded_chars",
+      "coefficient": 0.6248937164760294,
+      "abs_coefficient": 0.6248937164760294
+    },
+    {
+      "feature": "has_xss_patterns",
+      "coefficient": 0.4175833594627954,
+      "abs_coefficient": 0.4175833594627954
+    },
+    {
+      "feature": "has_command_injection_patterns",
+      "coefficient": 0.25759619736756445,
+      "abs_coefficient": 0.25759619736756445
+    },
+    {
+      "feature": "method_GET",
+      "coefficient": -0.14215886285787802,
+      "abs_coefficient": 0.14215886285787802
+    },
+    {
+      "feature": "header_content-type_present",
+      "coefficient": 0.14215886285787802,
+      "abs_coefficient": 0.14215886285787802
+    },
+    {
+      "feature": "method_POST",
+      "coefficient": -0.0003830655312518041,
+      "abs_coefficient": 0.0003830655312518041
+    }
+  ]
+}

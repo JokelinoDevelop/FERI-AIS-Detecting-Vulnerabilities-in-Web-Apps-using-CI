@@ -12,6 +12,7 @@ from sklearn.metrics import (
     precision_recall_curve, roc_curve
 )
 import matplotlib.pyplot as plt
+from matplotlib.patches import Patch
 import seaborn as sns
 import joblib
 from pathlib import Path
@@ -221,11 +222,27 @@ class VulnerabilityDetector:
         axes[1, 0].set_ylabel('Precision')
         axes[1, 0].set_title('Precision-Recall Curve')
 
-        # Feature Importance (top 20)
-        feature_imp = self.get_feature_importance().head(20)
-        axes[1, 1].barh(feature_imp['feature'], feature_imp['coefficient'])
+        # Feature Importance (top 20, excluding zero coefficients)
+        feature_imp = self.get_feature_importance()
+        # Filter out zero coefficients and get top 20
+        feature_imp = feature_imp[feature_imp['abs_coefficient'] > 0].head(20)
+        # Reverse order so largest values are at top
+        feature_imp = feature_imp.iloc[::-1]
+        
+        # Color bars based on sign (red for negative, green for positive)
+        colors = ['#d62728' if x < 0 else '#2ca02c' for x in feature_imp['coefficient']]
+        bars = axes[1, 1].barh(feature_imp['feature'], feature_imp['coefficient'], color=colors)
+        axes[1, 1].axvline(x=0, color='black', linestyle='--', linewidth=0.8)
         axes[1, 1].set_xlabel('Coefficient')
         axes[1, 1].set_title('Top 20 Feature Importance')
+        axes[1, 1].grid(axis='x', alpha=0.3)
+        
+        # Add legend
+        legend_elements = [
+            Patch(facecolor='#2ca02c', label='Positive (increases vulnerability risk)'),
+            Patch(facecolor='#d62728', label='Negative (decreases vulnerability risk)')
+        ]
+        axes[1, 1].legend(handles=legend_elements, loc='lower right', fontsize=8)
 
         plt.tight_layout()
 

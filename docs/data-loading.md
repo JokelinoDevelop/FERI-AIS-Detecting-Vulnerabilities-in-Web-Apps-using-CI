@@ -7,12 +7,15 @@ Data loading is the **first step** in our machine learning pipeline. It takes ra
 ## 📄 The CSIC 2010 Dataset
 
 ### What We Have
+
 - **61,065 HTTP requests** (real website traffic)
 - **36,000 Normal requests** (safe browsing)
 - **25,065 Anomalous requests** (attacks)
 
 ### Raw CSV Format
+
 The data comes as a CSV file with columns like:
+
 ```
 Method, User-Agent, Pragma, Cache-Control, Accept, Accept-encoding,
 Accept-charset, language, host, cookie, content-type, connection,
@@ -96,7 +99,9 @@ df['content_length'] = df['content_length'].fillna(0)
 ## 🎯 Stratified Sampling (The Smart Part!)
 
 ### The Problem
+
 If you take the first 2000 rows, you get mostly normal requests:
+
 ```python
 df.head(2000)['classification'].value_counts()
 # 0    1995  ← Almost all normal!
@@ -130,11 +135,13 @@ print(balanced_df['target'].value_counts())
 ## 🧮 Train/Test Split
 
 ### Why Split Data?
+
 - **Training set**: Used to teach the model (80% of data)
 - **Test set**: Used to evaluate performance (20% of data)
 - **Never show test data during training!**
 
 ### Stratified Split
+
 ```python
 from sklearn.model_selection import train_test_split
 
@@ -154,6 +161,7 @@ print("Test set:", len(test_df))       # 400 samples
 After processing, you get clean DataFrames ready for machine learning:
 
 ### Training Data (train_df)
+
 ```python
 # 1600 rows × 18 columns
 train_df.head()
@@ -163,6 +171,7 @@ train_df.head()
 ```
 
 ### Test Data (test_df)
+
 ```python
 # 400 rows × 18 columns
 # Same structure, but model never sees this during training
@@ -223,14 +232,17 @@ print(df[df['target'] == 1].head(1)[['Method', 'URL']])
 ## 🚨 Common Issues & Solutions
 
 ### Issue: "Only one class found"
+
 **Cause**: Not using stratified sampling
 **Solution**: Use `stratified_sample=True` or `--nrows 2000`
 
 ### Issue: Memory errors
+
 **Cause**: Loading full 61k dataset
 **Solution**: Use `--nrows 5000` for testing
 
 ### Issue: "Column not found"
+
 **Cause**: CSV format changed
 **Solution**: Check column names with `df.columns`
 
@@ -252,6 +264,7 @@ df = loader.load_data(
 ## 📈 What Happens Next
 
 After data loading, the clean DataFrames go to:
+
 1. **Feature Engineering**: Convert text to numbers
 2. **Model Training**: Learn patterns from the data
 3. **Evaluation**: Test on unseen data
